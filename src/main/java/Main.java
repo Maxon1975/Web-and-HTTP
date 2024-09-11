@@ -3,6 +3,7 @@ import request.Request;
 import server.Server;
 
 import java.io.*;
+import java.nio.file.Files;
 
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -10,7 +11,7 @@ public class Main {
 
         server.addHandler("GET", "/messages", new Handler() {
             public void handle(Request request, BufferedOutputStream responseStream) {
-                var message = "Attention! GET!";
+                var message = "Hello! GET!";
                 try {
                     responseStream.write((
                             "HTTP/1.1 200 OK\r\n" +
@@ -27,7 +28,7 @@ public class Main {
         });
 
         server.addHandler("POST", "/messages", ((request, responseStream) -> {
-            var message = "Attention! POST!";
+            var message = "Hello! POST!";
             try {
                 responseStream.write((
                         "HTTP/1.1 200 OK\r\n" +

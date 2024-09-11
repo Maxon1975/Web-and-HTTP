@@ -3,45 +3,38 @@ package server;
 import handler.Handler;
 import request.Request;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MultiThreadedHandler  implements Runnable {
+public class MultiThreadedHandler implements Runnable {
     private Socket socket;
     private ConcurrentHashMap<String, Map<String, Handler>> handlers;
 
-    public MultiThreadedHandler (Socket socket, ConcurrentHashMap<String, Map<String, Handler>> handlers) {
+    public MultiThreadedHandler(Socket socket, ConcurrentHashMap<String, Map<String, Handler>> handlers) {
         this.socket = socket;
         this.handlers = handlers;
     }
 
     @Override
     public void run() {
-        try {
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());
-            String requestLine = in.readLine();
-            String[] parts = requestLine.split(" ");
+        try (
+                BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
+                BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream())){
 
-            if (parts.length != 3) {
-                // закрываем сокет
-                socket.close();
-//                    continue;
-            }
-
-            Request request = new Request(parts[0], parts[1]);
-            if (request.getMethod() == null || !handlers.containsKey(request.getMethod())) {
+            Request request = Request.requestBuild(in);
+            if (request == null || !handlers.containsKey(request.getMethod())) {
                 responseLack(out, "404", "Request Not Found");
 //                    continue;
+                return;
             }
+            else
+                printRequestDebug(request);
 
             Map<String, Handler> handlerMap = handlers.get(request.getMethod());
             String requestPath = request.getPath();
@@ -56,6 +49,7 @@ public class MultiThreadedHandler  implements Runnable {
                     Path filePath = Path.of(".", "public", requestPath);
                     String mimeType = Files.probeContentType(filePath);
 
+                    // special case for classic
                     if (requestPath.equals("/classic.html")) {
                         String template = Files.readString(filePath);
                         byte[] content = template.replace(
@@ -87,7 +81,7 @@ public class MultiThreadedHandler  implements Runnable {
                 }
             }
 
-        } catch (IOException e) {
+        } catch (IOException | URISyntaxException e) {
             e.printStackTrace();
         }
     }
@@ -101,5 +95,19 @@ public class MultiThreadedHandler  implements Runnable {
                         "\r\n"
         ).getBytes());
         out.flush();
+    }
+
+    private void printRequestDebug(Request request) {
+        System.out.println("Request debug information: ");
+        System.out.println("METHOD: " + request.getMethod());
+        System.out.println("PATH: " + request.getPath());
+        System.out.println("---HEADERS:---Начало---");
+        for (String header : request.getHeaders()) {
+            System.out.println(header);
+        }
+        System.out.println("---HEADERS:---Конец---");
+        System.out.println("BODY: " + request.getQueryParams());
+        System.out.println("BODY Test login: " + request.getQueryParam("login"));
+        System.out.println("BODY Test password: " + request.getQueryParam("password"));
     }
 }
